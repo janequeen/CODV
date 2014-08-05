@@ -52,25 +52,49 @@ def codedata(input_data):
     return data
 
 def send():
+    global recieved
+    global mutex
+    mutex = Lock()
     #ip = getip()
-    ip = '210.32.181.184'
+    ip = '131.247.2.242'
     udpSerSock = socket(AF_INET,SOCK_DGRAM)
     #udpSerSock.setsockopt(SOL_SOCKET,SO_REUSEADDR,1)
     #udpSerSock.setsockopt(SOL_SOCKET,SO_BROADCAST,1)
     filename = 'send'+str(int(time()))+PUTFILE
     fr = open(filename,'w')
-    dthash = 1
+    dthash = 9909
+    mysquencenum = 5080
     for j in range(100):
         #dthash = randint(0,10000)
-        dthash +=1
-        print(str(j)+'.message:'+str(dthash))
+        dthash += 1
+        print(str(j)+'.message:'+str(dthash)+str(mysquencenum))
         cip = ip
-        data = codedata([RREQ,cip,str(dthash)])
+        data = codedata([RREQ,cip,str(dthash),str(mysquencenum)])
         t = time()
-        print>>fr,'RREQ:time:'+str(t)+',message:'+str(dthash)
-        for nei in neib[ip]:
-            udpSerSock.sendto(data,(nei,PORT))
-        sleep(5)
+        #print>>fr,'RREQ:time:'+str(t)+',message:'+str(dthash)
+        print>>fr,'RREQ:time:'+str(t)+',message:'+str(dthash)+str(mysquencenum)
+        
+
+        if mutex.acquire(1):            
+            recieved = False            
+            mutex.release()            
+        while True:            
+            mysquencenum += 1
+            print("send RREQ",dthash,mysquencenum)
+            data = codedata([RREQ,cip,str(dthash),str(mysquencenum)])
+            for nei in neib[ip]:
+                udpSerSock.sendto(data,(nei,PORT))                
+            sleep(3)
+            if mutex.acquire(1):
+                print("after 3s ",recieved)
+                if recieved:
+                    mutex.release()
+                    break
+                else:
+                    pass
+                print("mutex.release ",recieved)
+                mutex.release()
+                
     sleep(10)
     data = ''.encode()
     for nei in neib[ip]:
@@ -80,10 +104,16 @@ def send():
 
 
 def listen():
+    global recieved
+    global mutex 
+    mutex = Lock()
     #ip = getip()
     interest = []
-    ip = '210.32.181.184'
+    datacache = []
+    ip = '131.247.2.242'
     nei = neib[ip]
+    se = 0
+    sendpktnum = 0
     udpSerSock = socket(AF_INET,SOCK_DGRAM)
     #udpSerSock.setsockopt(SOL_SOCKET,SO_REUSEADDR,1)
     #udpSerSock.setsockopt(SOL_SOCKET,SO_BROADCAST,1)
@@ -102,6 +132,7 @@ def listen():
                 print('get RREQ from:',addr[0])
                 cip = data[1]
                 dthash = data[2]
+                pktsequencenum = data[3]
                 for dataj in datacache:
                     if dthash == dataj[0]:
                         dataincache = 1
@@ -110,13 +141,13 @@ def listen():
                 if not se:
                     iin = 0
                     for intere in interest:
-                        if dthash == intere[0]:
+                        if dthash == intere[0] and pktsequencenum == intere[2]:
                             iin = 1
                     if iin:
                         pass
                     else:
-                        interest.append((dthash,addr[0]))
-                        data = codedata([mk,cip,dthash])
+                        interest.append((dthash,addr[0],pktsequencenum))
+                        data = codedata([mk,cip,dthash,pktsequencenum])
                         
                         for neibh in nei:
 			    if neibh != addr[0]:
@@ -124,10 +155,10 @@ def listen():
 				sendpktnum += 1
                                 print('send RREQ to:',neibh)
                 else:
-                    if (dthash,cip) in interest:
+                    if (dthash,cip,pktsequencenum) in interest:
                         pass
                     else:
-                        interest.append((dthash,cip))
+                        interest.append((dthash,cip,pktsequencenum))
                         data = [RREP,cip,ip,addr[0],dthash]
                         data = codedata(data)                        
                         udpSerSock.sendto(data,(addr[0],PORT))
@@ -143,23 +174,34 @@ def listen():
                    # for neibh in nei:
                    #     print('forward RREP to',nextip)
                    #     udpSerSock.sendto(data,(neibh,PORT))
+                    t = time()
                     dataincache = 0
+                    print('recv RREP for me',dthash)
                     for datai in datacache:
+                        #print('data hash,',dthash,datai[0])
                         if dthash == datai[0]:
+                            print('data already in cache',dthash)
                             dataincache = 1
                             break
                     if dataincache == 0:
-                        datacache.append(dthash,0)
-                    for i in interest:
-                        #print('look up Interest',i[1],i[0])
-                        if dthash == i[0]:
-                            nextip = i[1]
-                            data = [mk,cip,sip,nextip,dthash]
-                            data = codedata(data)
-                            print('forward RREP to',nextip)			    
-                            udpSerSock.sendto(data,(nextip,PORT))
-			    sendpktnum += 1
-                            break
+                        datacache.append((dthash,0))
+                        #datacache.append(dthash)
+                        #print('data add in cache',dthash)
+                        print>>fl,'RREP:time:'+str(t)+',message:'+str(dthash)
+                        
+                        if mutex.acquire(1):
+                            recieved = True                            
+                            mutex.release()
+                        for i in interest:
+                            #print('look up Interest',i[1],i[0])
+                            if dthash == i[0]:
+                                nextip = i[1]
+                                data = [mk,cip,sip,nextip,dthash]
+                                data = codedata(data)
+                                print('forward RREP to',nextip)			    
+                                udpSerSock.sendto(data,(nextip,PORT))
+                                sendpktnum += 1
+                                break
                     #if nextip != ip:
                     #    data = [mk,cip,sip,nextip,dthash]
                     #    data = codedata(data)
@@ -174,13 +216,19 @@ def listen():
                 print("Wrong Type")
         else:
             #time.sleep(20)
-	    print('ctl pkt num:',sendpktnum)
+	    print('ctl pkt num:',ip,sendpktnum)
             for neibh in nei:
                 udpSerSock.sendto(data,(neibh,PORT))
             break
     udpSerSock.close()
+    
+#global recieved 
+#recieved = False
+#mutex = Lock()
 
 def main():
+    global mutex 
+    mutex = Lock()
     ts = Thread(target = send)
     tl = Thread(target = listen)
     ts.start()
