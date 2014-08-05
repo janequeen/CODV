@@ -60,8 +60,9 @@ def send():
     udpSerSock = socket(AF_INET,SOCK_DGRAM)
     #udpSerSock.setsockopt(SOL_SOCKET,SO_REUSEADDR,1)
     #udpSerSock.setsockopt(SOL_SOCKET,SO_BROADCAST,1)
-    filename = 'send'+str(int(time()))+PUTFILE
-    fr = open(filename,'w')
+    #filename = 'send'+str(int(time()))+PUTFILE
+    filename = 'latency'+PUTFILE
+    #fr = open(filename,'a+')
     dthash = 9909
     mysquencenum = 5080
     for j in range(100):
@@ -72,7 +73,9 @@ def send():
         data = codedata([RREQ,cip,str(dthash),str(mysquencenum)])
         t = time()
         #print>>fr,'RREQ:time:'+str(t)+',message:'+str(dthash)
+        fr = open(filename,'a+')
         print>>fr,'RREQ:time:'+str(t)+',message:'+str(dthash)+str(mysquencenum)
+        fr.close()
         
 
         if mutex.acquire(1):            
@@ -99,7 +102,7 @@ def send():
     data = ''.encode()
     for nei in neib[ip]:
         udpSerSock.sendto(data,(nei,PORT))
-    fr.close()
+    #fr.close()
 
 
 
@@ -118,8 +121,9 @@ def listen():
     #udpSerSock.setsockopt(SOL_SOCKET,SO_REUSEADDR,1)
     #udpSerSock.setsockopt(SOL_SOCKET,SO_BROADCAST,1)
     udpSerSock.bind(ADDR)
-    filename = 'listen'+str(int(time()))+PUTFILE
-    fl = open(filename,'w')
+    #filename = 'listen'+str(int(time()))+PUTFILE
+    filename = 'latency'+PUTFILE
+    #fl = open(filename,'w')
     while True:
         #print('waiting for message...')
         data,addr = udpSerSock.recvfrom(BUFSIZ)
@@ -187,7 +191,9 @@ def listen():
                         datacache.append((dthash,0))
                         #datacache.append(dthash)
                         #print('data add in cache',dthash)
+                        fl = open(filename,'a+')
                         print>>fl,'RREP:time:'+str(t)+',message:'+str(dthash)
+                        fl.close()
                         
                         if mutex.acquire(1):
                             recieved = True                            
