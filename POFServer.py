@@ -51,7 +51,7 @@ def main():
     datacache = []
     dataincache = 0
     se = 0
-    ip = '210.75.225.60'
+    ip = '131.247.2.242'
     nei = neib[ip]
     sendpktnum = 0
     if ip == Server:
@@ -69,10 +69,11 @@ def main():
                 continue
             data = parsedata(data)
             mk = data[0]
-            if mk == RREQ:
-                print('get RREQ from:',addr[0])
+            if mk == RREQ:                
                 cip = data[1]
                 dthash = data[2]
+                pktsequencenum = data[3]
+                print('get RREQ from:',addr[0],cip,pktsequencenum)                
                 for dataj in datacache:
                     if dthash == dataj[0]:
                         dataincache = 1
@@ -81,13 +82,16 @@ def main():
                 if not se:
                     iin = 0
                     for intere in interest:
-                        if dthash == intere[0]:
+                        #print('interest hash, ipsource,pktnum,dthash,dtnum:',intere[0],intere[1],intere[2],dthash,pktsequencenum)
+                        if dthash == intere[0] and pktsequencenum == intere[2]:
+                            print("RREQ already in Interest")
                             iin = 1
+                            break
                     if iin:
                         pass
                     else:
-                        interest.append((dthash,addr[0]))
-                        data = codedata([mk,cip,dthash])
+                        interest.append((dthash,addr[0],pktsequencenum))
+                        data = codedata([mk,cip,dthash,pktsequencenum])
                         
                         for neibh in nei:
 			    if neibh != addr[0]:
@@ -95,10 +99,18 @@ def main():
 				sendpktnum += 1
                                 print('send RREQ to:',neibh)
                 else:
-                    if (dthash,cip) in interest:
-                        pass
-                    else:
-                        interest.append((dthash,cip))
+                    #if (dthash,cip,pktsequencenum) in interest:
+                    #    pass
+                    #else:
+                    iin = 0
+                    for intere in interest:
+                        print('interest hash, ipsource,pktnum,dthash,dtnum:',intere[0],intere[1],intere[2],dthash,pktsequencenum)
+                        if dthash == intere[0] and pktsequencenum == intere[2]:
+                            print("RREQ already in Interest")
+                            iin = 1
+                            break                           
+                    if iin == 0:
+                        interest.append((dthash,cip,pktsequencenum))
                         data = [RREP,cip,ip,addr[0],dthash]
                         data = codedata(data)                        
                         udpSerSock.sendto(data,(addr[0],PORT))
@@ -145,10 +157,13 @@ def main():
                 print("Wrong Type")
         else:
             #time.sleep(20)
-	    print('ctl pkt num:',sendpktnum)
+	    print('ctl pkt num:',ip,sendpktnum)
             for neibh in nei:
                 udpSerSock.sendto(data,(neibh,PORT))
             break
     udpSerSock.close()
 
 main()
+
+
+
